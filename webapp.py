@@ -1,3 +1,4 @@
+from PIL import Image
 import streamlit as st
 import pandas as pd
 import joblib
@@ -6,17 +7,19 @@ from sklearn.preprocessing import LabelEncoder
 import seaborn as sns
 import matplotlib.pyplot as plt
 import shap
-import tempfile
-import streamlit.components.v1 as components
-st.set_page_config("Churn EDA & Predictor", layout="wide")
-st.title("📊 Telco Churn Dashboard")
+
+st.set_page_config("Singtel Churn EDA & Predictor", layout="wide")
+
+# Load and display Singtel logo
+logo = Image.open("logo.png")
+st.image(logo, width=150)
+st.title(" Singtel Churn Analytics Dashboard")
 
 # Load model
 model = XGBClassifier()
 model.load_model("xgboost.json")
 expected_cols = joblib.load("expected_columns.joblib")
 
-# Label encoder setup
 labelencoder = LabelEncoder()
 label_fit_values = {
     'gender': ['Female', 'Male'],
@@ -26,11 +29,11 @@ label_fit_values = {
     'PaperlessBilling': ['No', 'Yes'],
     "SeniorCitizen": ["No", "Yes"],
 }
+
 def encode_label(col, val):
     labelencoder.fit(label_fit_values[col])
     return labelencoder.transform([val])[0]
 
-# One-hot encoding options
 one_hot_values = {
     "MultipleLines": ["No", "Yes", "No phone service"],
     "InternetService": ["DSL", "Fiber optic", "No"],
@@ -46,10 +49,9 @@ one_hot_values = {
     ],
 }
 
-# --- TABS ---
-tab1, tab2 = st.tabs(["📈 EDA Dashboard", "🧠 Churn Predictor"])
+tab1, tab2 = st.tabs(["EDA Dashboard", "Churn Predictor"])
 
-# 📈 EDA TAB
+# ---------------- EDA ----------------
 with tab1:
     st.subheader("📊 Interactive Churn Dataset EDA")
     df = pd.read_csv("WA_Fn-UseC_-Telco-Customer-Churn.csv")
@@ -100,9 +102,9 @@ with tab1:
     plt.xticks(rotation=45, fontsize=7)
     st.pyplot(fig)
 
-
+# ---------------- PREDICTION ----------------
 with tab2:
-    st.subheader("🧠 Churn Prediction")
+    st.subheader("Churn Prediction ")
 
     gender = st.selectbox("Gender", ["Male", "Female"])
     senior = st.selectbox("Senior Citizen", ["Yes", "No"])
@@ -137,7 +139,6 @@ with tab2:
             "TotalCharges": total
         }
         df_base = pd.DataFrame([base])
-
         onehot_input = {
             "MultipleLines": multiplelines,
             "InternetService": internet,
@@ -175,65 +176,51 @@ with tab2:
         prob = model.predict_proba(df)[0][1]
         st.metric("Churn Probability", f"{prob:.2%}")
         if prob > 0.5:
-            st.error("⚠️ High risk of churn")
+            st.error("⚠️ High churn risk detected for this Singtel customer")
         else:
-            st.success("✅ Low churn risk")
+            st.success("✅ Low churn risk. Customer appears retained.")
 
-        #display SHAP Beeswarm plot of probability more than 0.5
-        # display SHAP bar plot if churn probability is greater than 0.5
         if prob > 0.5:
-            # Calculate SHAP values for the input DataFrame as before.
             explainer = shap.Explainer(model)
             shap_values = explainer(df)
-            local_shap = shap_values[0]  # Selecting the first prediction's SHAP values
-            
-            # Create a DataFrame that maps features to their SHAP values
+            local_shap = shap_values[0]
             shap_df = pd.DataFrame({
                 'Feature': df.columns,
                 'SHAP_Value': local_shap.values
-            })
-            # Sort by SHAP value descending (i.e. those features pushing churn higher)
-            shap_df_sorted = shap_df.sort_values(by='SHAP_Value', ascending=False)
-            
+            }).sort_values(by='SHAP_Value', ascending=False)
+
             st.write("### Feature Impact Ranking")
-            st.dataframe(shap_df_sorted)
-            # Display the SHAP bar plot for the top contributing features.
+            st.dataframe(shap_df)
+
             fig, ax = plt.subplots(figsize=(12, 3), constrained_layout=True)
-            # Render the bar plot without immediately showing it so we can capture and show via Streamlit.
             shap.plots.bar(local_shap, max_display=10, show=False, ax=ax)
-            ax.set_title("Local Feature Importance", fontsize=10)
+            ax.set_title("Local Feature Importance (Singtel Model)", fontsize=10)
             plt.setp(ax.get_xticklabels(), fontsize=8)
             plt.setp(ax.get_yticklabels(), fontsize=8)
             st.pyplot(fig)
-    
-            # Generate suggestions based on feature contributions
+
             suggestions = []
-            for _, row in shap_df_sorted.iterrows():
+            for _, row in shap_df.iterrows():
                 feature = row['Feature']
                 shap_val = row['SHAP_Value']
-                
-                # Only consider features that contribute positively to churn risk
                 if shap_val > 0.01:
                     if "MonthlyCharges" in feature:
-                        suggestions.append("• High monthly charges are a major churn driver. Consider offering discounts, flexible billing, or bundled promotion plans.")
+                        suggestions.append("• Customer may be price-sensitive. Consider offering a MobileShare Plus plan with greater data value.")
                     elif "tenure" in feature:
-                        suggestions.append("• A low tenure contribution indicates that customer loyalty might be low. Introduce loyalty programs or retention incentives.")
+                        suggestions.append("• Customer is new to Singtel. Engage them early with retention incentives like Disney+ or McAfee free trials.")
                     elif "discount_factor" in feature:
-                        suggestions.append("• The low discount factor suggests that the customer had not received much discounts from the Telco. Evaluate pricing strategies or personalized offers.")
+                        suggestions.append("• Customer appears underserved in terms of pricing benefits. A targeted recontract offer could improve retention.")
                     elif "Streaming" in feature:
-                        suggestions.append("• Streaming service features are impacting churn. Tailor bundled streaming packages to provide more value.")
+                        suggestions.append("• Highlight Singtel’s bundled streaming plans to provide greater perceived value.")
                     elif "Contract" in feature:
-                        suggestions.append("• The contract type is influencing churn. Consider offering flexible contract terms or incentives for longer commitments.")
-                    elif any(val in feature for val in ["TechSupport_No", "Online_Security_No", "Online_Backup_No"]):
-                        suggestions.append("• Additional Services is a significant churn driver. Provide these services to enhance customer satisfaction.")
-            st.write("### Suggested Actions to Reduce Churn")
-            #remove duplicates and empty suggestions
+                        suggestions.append("• Upgrade short-term contracts by offering rewards for switching to 12- or 24-month commitments.")
+                    elif "TechSupport" in feature or "OnlineSecurity" in feature or "OnlineBackup" in feature:
+                        suggestions.append("• Recommend free trials of Mobile Protect or device insurance to enhance perceived service value.")
+            st.write("### 📌 Singtel-Specific Retention Suggestions")
             suggestions = list(set(suggestions))
-            suggestions = [s for s in suggestions if s.strip() != ""]
-            if suggestions:
-                for s in suggestions:
-                    st.write(s)
-            else:
-                st.write("No actionable suggestions based on the current SHAP values.")
-                
+            suggestions = [s for s in suggestions if s.strip()]
+            for s in suggestions:
+                st.write(s)
 
+        st.markdown("---")
+        st.caption("This predictive dashboard is tailored for Singtel's customer churn analysis. Results are based on representative data and serve decision support purposes only.")
