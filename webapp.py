@@ -213,13 +213,13 @@ with tab2:
                 shap_val = row['SHAP_Value']
                 
                 # Only consider features that contribute positively to churn risk
-                if shap_val > 0:
+                if shap_val > 0.01:
                     if "MonthlyCharges" in feature:
                         suggestions.append("• High monthly charges are a major churn driver. Consider offering discounts, flexible billing, or bundled promotion plans.")
                     elif "tenure" in feature:
                         suggestions.append("• A low tenure contribution indicates that customer loyalty might be low. Introduce loyalty programs or retention incentives.")
                     elif "discount_factor" in feature:
-                        suggestions.append("• The discount factor suggests misalignment between spending and usage. Evaluate pricing strategies or personalized offers.")
+                        suggestions.append("• The low discount factor suggests that the customer had not received much discounts from the Telco. Evaluate pricing strategies or personalized offers.")
                     elif "Streaming" in feature:
                         suggestions.append("• Streaming service features are impacting churn. Tailor bundled streaming packages to provide more value.")
                     elif "Contract" in feature:
