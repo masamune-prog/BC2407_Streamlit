@@ -223,4 +223,3 @@ with tab2:
                 st.write(s)
 
         st.markdown("---")
-        st.caption("This predictive dashboard is tailored for Singtel's customer churn analysis. Results are based on representative data and serve decision support purposes only.")
